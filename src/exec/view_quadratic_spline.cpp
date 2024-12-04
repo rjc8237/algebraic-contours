@@ -1,28 +1,23 @@
 // Copyright 2023 Adobe Research. All rights reserved.
 // To view a copy of the license, visit LICENSE.md.
 
-#include "common.h"
-#include "globals.cpp"
 #include "apply_transformation.h"
-#include "generate_transformation.h"
+#include "common.h"
 #include "compute_boundaries.h"
 #include "contour_network.h"
+#include "generate_transformation.h"
+#include "globals.cpp"
 #include "twelve_split_spline.h"
+#include <CLI/CLI.hpp>
 #include <igl/readOBJ.h>
 #include <igl/writeOBJ.h>
-#include <CLI/CLI.hpp>
 
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   // Build maps from strings to enums
-  std::map<std::string, spdlog::level::level_enum> log_level_map {
-    {"trace",    spdlog::level::trace},
-    {"debug",    spdlog::level::debug},
-    {"info",     spdlog::level::info},
-    {"warn",     spdlog::level::warn},
-    {"critical", spdlog::level::critical},
-    {"off",      spdlog::level::off},
+  std::map<std::string, spdlog::level::level_enum> log_level_map{
+      {"trace", spdlog::level::trace},       {"debug", spdlog::level::debug},
+      {"info", spdlog::level::info},         {"warn", spdlog::level::warn},
+      {"critical", spdlog::level::critical}, {"off", spdlog::level::off},
   };
 
   // Get command line arguments
@@ -35,14 +30,16 @@ int main(int argc, char *argv[])
   OptimizationParameters optimization_params;
   double weight = optimization_params.position_difference_factor;
   app.add_option("-i,--input", input_filename, "Mesh filepath")
-    ->check(CLI::ExistingFile)
-    ->required();
+      ->check(CLI::ExistingFile)
+      ->required();
   app.add_option("--log_level", log_level, "Level of logging")
-    ->transform(CLI::CheckedTransformer(log_level_map, CLI::ignore_case));
-  app.add_option("--num_subdivisions", num_subdivisions, "Number of subdivisions")
-    ->check(CLI::PositiveNumber);
-  app.add_option("-w,--weight", weight, "Fitting weight for the quadratic surface approximation")
-    ->check(CLI::PositiveNumber);
+      ->transform(CLI::CheckedTransformer(log_level_map, CLI::ignore_case));
+  app.add_option("--num_subdivisions", num_subdivisions,
+                 "Number of subdivisions")
+      ->check(CLI::PositiveNumber);
+  app.add_option("-w,--weight", weight,
+                 "Fitting weight for the quadratic surface approximation")
+      ->check(CLI::PositiveNumber);
   CLI11_PARSE(app, argc, argv);
 
   // Set logger level
@@ -66,9 +63,14 @@ int main(int argc, char *argv[])
       energy_hessian_inverse;
   AffineManifold affine_manifold(F, uv, FT);
   TwelveSplitSplineSurface spline_surface(
-      V, affine_manifold,
-      optimization_params, face_to_patch_indices, patch_to_face_indices,
-      fit_matrix, energy_hessian, energy_hessian_inverse);
+      V, affine_manifold, optimization_params, face_to_patch_indices,
+      patch_to_face_indices, fit_matrix, energy_hessian,
+      energy_hessian_inverse);
+
+  // output to obj
+  spline_surface.write_corner_patch_points_to_obj("sphere_powell_sabon.obj");
+  spline_surface.write_cubic_nodes_to_msh("sphere_ps_cubic.msh");
+  spline_surface.write_cubic_nodes_to_obj("sphere_ps_cubic_nodes.obj");
 
   // View the mesh
   spline_surface.view(color, num_subdivisions);
