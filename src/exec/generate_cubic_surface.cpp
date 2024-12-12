@@ -1,6 +1,3 @@
-// Copyright 2023 Adobe Research. All rights reserved.
-// To view a copy of the license, visit LICENSE.md.
-
 #include "apply_transformation.h"
 #include "common.h"
 #include "compute_boundaries.h"
@@ -12,6 +9,8 @@
 #include <igl/readOBJ.h>
 #include <igl/writeOBJ.h>
 
+#include "clough_tocher_surface.hpp"
+
 int main(int argc, char *argv[]) {
   // Build maps from strings to enums
   std::map<std::string, spdlog::level::level_enum> log_level_map{
@@ -21,7 +20,7 @@ int main(int argc, char *argv[]) {
   };
 
   // Get command line arguments
-  CLI::App app{"Generate smooth occluding contours for a mesh."};
+  CLI::App app{"Generate Clough-Tocher cubic surface mesh."};
   std::string input_filename = "";
   std::string output_dir = "./";
   spdlog::level::level_enum log_level = spdlog::level::off;
@@ -55,23 +54,25 @@ int main(int argc, char *argv[]) {
 
   // Generate quadratic spline
   spdlog::info("Computing spline surface");
-  std::vector<std::vector<int>> face_to_patch_indices;
-  std::vector<int> patch_to_face_indices;
+  //   std::vector<std::vector<int>> face_to_patch_indices;
+  //   std::vector<int> patch_to_face_indices;
   Eigen::SparseMatrix<double> fit_matrix;
   Eigen::SparseMatrix<double> energy_hessian;
   Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double>>
       energy_hessian_inverse;
   AffineManifold affine_manifold(F, uv, FT);
-  TwelveSplitSplineSurface spline_surface(
-      V, affine_manifold, optimization_params, face_to_patch_indices,
-      patch_to_face_indices, fit_matrix, energy_hessian,
-      energy_hessian_inverse);
 
-  // output to obj
-  spline_surface.write_corner_patch_points_to_obj("sphere_powell_sabon.obj");
-  spline_surface.write_cubic_nodes_to_msh("sphere_ps_cubic.msh");
-  spline_surface.write_cubic_nodes_to_obj("sphere_ps_cubic_nodes.obj");
+  CloughTocherSurface ct_surface(V, affine_manifold, optimization_params,
+                                 fit_matrix, energy_hessian,
+                                 energy_hessian_inverse);
 
-  // View the mesh
-  spline_surface.view(color, num_subdivisions);
+  ct_surface.write_coeffs_to_obj("test_cubic_points.obj");
+
+  ct_surface.sample_to_obj("test_sample_cubic_points.obj", 25);
+
+  ct_surface.write_cubic_surface_to_msh_no_conn("test_cubic_sphere.msh");
+  ct_surface.write_cubic_surface_to_msh_with_conn(
+      "test_cubic_sphere_with_conn.msh");
+
+  return 0;
 }
