@@ -206,7 +206,7 @@ void CloughTocherSurface::sample_to_obj(std::string filename, int sample_size) {
 
 void CloughTocherSurface::write_cubic_surface_to_msh_with_conn(
     std::string filename) {
-  std::ofstream file(filename);
+  std::ofstream file(filename + ".msh");
 
   /*
     $MeshFormat
@@ -385,19 +385,24 @@ void CloughTocherSurface::write_cubic_surface_to_msh_with_conn(
   file << "$EndElements\n";
 
   // mark cones
-  const auto &cone_indices = m_affine_manifold.generate_cones();
+  // const auto &cone_indices = m_affine_manifold.generate_cones();
 
-  file << "$NodeData\n";
-  file << "1\n";                       // num string tags
-  file << "\"Cone\"\n";                // string tag
-  file << "1\n";                       // num real tags
-  file << "0.0\n";                     // time step starts
-  file << "3\n";                       // three integer tags
-  file << "0\n";                       // time step
-  file << "1\n";                       // num field
-  file << cone_indices.size() << "\n"; // num associated nodal values
-  for (const auto &idx : cone_indices) {
-    file << v_to_v_map[idx] + 1 << " 1.0\n";
+  // file << "$NodeData\n";
+  // file << "1\n";                       // num string tags
+  // file << "\"Cone\"\n";                // string tag
+  // file << "1\n";                       // num real tags
+  // file << "0.0\n";                     // time step starts
+  // file << "3\n";                       // three integer tags
+  // file << "0\n";                       // time step
+  // file << "1\n";                       // num field
+  // file << cone_indices.size() << "\n"; // num associated nodal values
+  // for (const auto &idx : cone_indices) {
+  //   file << v_to_v_map[idx] + 1 << " 1.0\n";
+  // }
+  // file << "$EndNodeData\n";
+
+  std::ofstream v_map_file(filename + "_input_v_to_output_v_map.txt");
+  for (const auto &pair : v_to_v_map) {
+    v_map_file << pair.first << " " << pair.second << std::endl;
   }
-  file << "EndNodeData\n";
 }
