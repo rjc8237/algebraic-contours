@@ -69,6 +69,52 @@ CTtri_bounds = [ Matrix([ [q.coeff(bc) for bc in uvwvars] for q in p]) for p in 
                                      ep2line(x[1],x[2]), ep2line(x[2],x[0])], CTtri))]
 
 
+#  ********* global definitions, Lagrange nodes *********
+
+#subtriangle corner barycentric coordinates
+bp0 = np.array([Rational(1),Rational(0),Rational(0)])
+bp1 = np.array([Rational(0),Rational(1),Rational(0)])
+bp2 = np.array([Rational(0),Rational(0),Rational(1)])
+bc  = np.array([Rational(1,3),Rational(1,3),Rational(1,3)])
+
+# barycentric coords of all Lagrange nodes, multiplied by 9, so that these are all integers
+# computed as linear combinations of corners of subtriangles
+# coefficients should sum up to 9
+node_bary = [
+  9*bp0, 9*bp1, 9*bp2, # corners
+  6*bp0+3*bp1, 3*bp0+6*bp1,   6*bp1+3*bp2, 3*bp1+6*bp2,   6*bp2+3*bp0, 3*bp2+6*bp0, # 2 nodes  per exterior edge,split the edges 2:1 and 1:2
+  3*bp0+3*bp1+3*bc, 3*bp1+3*bp2+3*bc, 3*bp2+3*bp0+3*bc, # subtriangle center nodes  
+  6*bp0+3*bc, 3*bp0+6*bc,   6*bp1+3*bc, 3*bp1+6*bc,   6*bp2+3*bc, 3*bp2+6*bc, # 2 nodes  per interior edge split the edges 2:1 and 1:2
+  9*bc # center node 
+]  
+subtri_nodes = [ 
+    [0,1, 3+0, 3+1,  9 ,  12+0, 12+1, 12+2, 12+3,  18],
+    [1,2, 3+2, 3+3,  10,  12+2, 12+3, 12+4, 12+5,  18],
+    [2,0, 3+4, 3+5,  11,  12+4, 12+5, 12+0, 12+1,  18],
+]
+
+# a helpde function to create symbolic names for nodes based on their barycentric coords
+def bary2name(bc):
+    return 'c'+''.join([ str(c) for c in bc])
+
+# dictionary  barycentric coordinate tuples -> symbolic name for an node
+node_vars_dict = {tuple(map(lambda x: int(x), b)): symbols(bary2name(b)) for b in node_bary}
+
+# array of barycentric coord tuples in the same order as in node_bary 
+ind2bary = [tuple(map(lambda x: int(x), b))  for b in node_bary]
+
+# array of variables in the order matching node_bary
+node_vars = [ node_vars_dict[ind2bary[i]] for i in range(19)]
+
+# polynomials that can be used to evaluate each of the Lagrange nodes
+node_subtri = \
+[0, 1, 2,  # corners, one index of two possible 
+ 0, 0, 1, 1, 2,2, # exterior edges 
+ 0, 1, 2, # subtriangle centers 
+ 0, 0, 1, 1, 2, 2, # interior edges, one index of two possible 
+ 0 # any polynomial can be used
+]
+
 
 # ********* global definitions, boundary dofs of the element *********
 
@@ -280,7 +326,27 @@ def CT_eval(CT_matrices,  CTtri_bounds, boundary_data, u,v,w):
     else:
         return np.nan
 
+# *******  Converting to Lagrange basis ****** 
+def generate_L2L(polys_C1, node_bary, node_subtri, all_inknowns): 
+    """
+    Generates a matrix L_d2L that maps a vector of 12 dofs (pi, Gij, Nij) to the vector of Lagrange node values 
+    enumerated as described  by node_bary and node_vars. node_subtri is the 3 polynomials on subtriangles with 
+    coefficients given in terms of (pi, Gij, Nij)
+    """
+    subtri_polys  = [Poly(p,[u,v,w]) for p in polys_C1]
+    Lagr_node_vals = [ subtri_polys[node_subtri[i]](*(node_bary[i]/9)) for i in range(19) ]
+    local_dof_vars = all_unknowns
+    L_d2L = Matrix( [ [ Lnode.coeff(v) for v in local_dof_vars]  for Lnode in Lagr_node_vals])
+    return L_d2L
 
+# a vector of coefficients c_e
+
+def generate_ce(subtri_polys):
+    "Creates a vector of coefficients which, when applied to the vector [p0,p1,G01,G10,N01] yields the derivative along the edge at the midpoint."
+    midpt_dfde = subtri_polys[0].as_expr().subs({w:0,v:1-u}).expand().collect(u).diff(u).subs({u:Rational(1,2)})
+    edge_endpt_vars = [p0,p1,G01,G10, N01]
+    c_e = [midpt_dfde.coeff(v) for v in edge_endpt_vars]
+    return c_e
 
 # ******** Testing *********
 
@@ -310,6 +376,34 @@ def runTests(polys_C1_f):
     print('Gradient on internal subtriangle boundaries match '+ ('passed' if passed else 'not passed'))    
 
 
+
+def test_Lagrange_consistency(polys_C1_f, L_L2d_ind, L_ind2dep): 
+    """
+    polys_C1_f: 3 subtriangle polynomials with coefficients in terms of (pi, Gij, Nij) variables, 
+    L_L2d_ind:  12 x12  matrix expressing (pi, Gij, Nij) in terms of 12 indep. Lagrange node values 
+    L_ind2dep:  matrix expressing 7 dependence Lagrange nodes in terms of independent; this ensures internal edge C1 constraints 
+    The test verifies that 
+    (1) when we use   L_L2d_ind to express polynomial coefficient in terms of indep Lagrange nodes 
+    we get these nodes back when evaluating at their barycentric coordinates. 
+    (2)  when we evaluate at the dependent node coordinates we get the same as we get by applying L_ind2dep to indep  node values. 
+    As for any choice of (pi, Gij, Nij) dofs the polynomials are already verified to be C1 at the interior edges, 
+    this also verifies that if the dependent node values are computed from independent using L_ind2dep, the resulting polynomials
+    are C1 at the interior edges. 
+    """
+    global all_unknowns, node_vars, node_bary, subtri_nodes
+    dof_vars = all_unknowns
+
+    # express the triangle dof values (pi, Gij, Nij) in terms of independ lagrange node values using provided matrix
+    dof_lagr_subs = dict( [[ dof_vars[i], (L_L2d_ind *  Matrix( [node_vars[0:12]]).T)[i] ] for i in range(12)])
+    # express dependent node values in terms of indepedent
+    dep_nodes_expr = L_ind2dep*Matrix([node_vars[0:12]]).T
+
+    # evaluate the polynomials on subtriangles at node barycentric coordinates, verify we get the Lagrange nodes back
+    passed = True
+    for i in range(3): 
+        passed = passed and not any([ Poly( polys_C1_f[i].subs( dof_lagr_subs), [u,v,w])(*node_bary[j]/9)- node_vars[j] for j in subtri_nodes[i] if j < 12]+\
+        [ Poly(  polys_C1_f[i].subs( dof_lagr_subs), [u,v,w])(*node_bary[j]/9)- dep_nodes_expr[j-12] for j in subtri_nodes[i] if j >= 12])
+    print('Lagrange consistency test '+ ('passed' if passed else 'not passed'))    
 
 #  ********  Plotting  *********
 # !!!! ChatGPT generated - probably there is a better way to plot a function on a triangle but not sure 
@@ -380,6 +474,7 @@ def plot_function_on_triangle(func, fun_name, vertices, resolution=20):
     )
     # Show the interactive plot
     fig.show()
+    return fig
 
 
 def create_regular_grid_and_triangles(resolution):
