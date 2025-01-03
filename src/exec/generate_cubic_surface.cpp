@@ -71,7 +71,10 @@ int main(int argc, char *argv[]) {
   ct_surface.sample_to_obj("test_sample_cubic_points.obj", 25);
 
   ct_surface.write_cubic_surface_to_msh_no_conn("test_cubic_sphere.msh");
-  ct_surface.write_cubic_surface_to_msh_with_conn("duck_with_conn");
+  //   ct_surface.write_cubic_surface_to_msh_with_conn("duck_with_conn");
+
+  ct_surface.write_cubic_surface_to_msh_with_conn_from_lagrange_nodes(
+      "icosphere_from_lagrange_nodes");
 
   return 0;
 }

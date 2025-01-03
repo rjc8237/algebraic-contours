@@ -61,6 +61,25 @@ struct EdgeManifoldChart {
 
   // True iff the edge is on the boundary
   bool is_boundary;
+
+  // added for C1 constraints
+  // global uv vertex mapping
+  int64_t left_global_uv_idx;
+  int64_t right_global_uv_idx;
+  int64_t top_global_uv_idx;
+  int64_t bottom_global_uv_idx;
+  int64_t reverse_left_global_uv_idx;
+  int64_t reverse_right_global_uv_idx;
+
+  // global uv vertex positions
+  PlanarPoint left_global_uv_position;
+  PlanarPoint right_global_uv_position;
+  PlanarPoint top_global_uv_position;
+  PlanarPoint bottom_global_uv_position;
+  PlanarPoint reverse_left_global_uv_position;
+  PlanarPoint reverse_right_global_uv_position;
+
+  std::array<int64_t, 4> lagrange_nodes;
 };
 
 /// Local layout manifold chart in R2 of a triangle.
@@ -78,6 +97,13 @@ struct FaceManifoldChart {
   bool is_cone_adjacent = false; // Mark faces adjacent to a cone
   std::array<bool, 3> is_cone_corner = {
       false, false, false}; // Mark individual corners adjacent to a cone
+
+  // added for C1 constraints
+  // std::array<int64_t, 3> vertex_indices;
+  // std::array<int64_t, 3> global_uv_indices;
+  // std::array<PlanarPoint, 3> global_uv_positions;
+
+  std::array<int64_t, 19> lagrange_nodes;
 };
 
 /// Representation for an affine manifold, which is a topological manifold F
@@ -298,7 +324,7 @@ public:
   // Clear all internal data for a trivial cone manifold
   void clear();
 
-protected:
+public:
   void build_vertex_charts_from_lengths(
       const Eigen::MatrixXi &F, const std::vector<std::vector<double>> &l,
       std::vector<VertexManifoldChart> &vertex_charts) const;
@@ -341,7 +367,7 @@ protected:
 
   bool is_valid_affine_manifold() const;
 
-protected:
+public:
   // Topology information
   // TODO: The faces are duplicated in the halfedge. Our halfedge alway
   // retains the original VF topology, so there is no need to maintain both
@@ -361,6 +387,35 @@ protected:
   std::vector<VertexManifoldChart> m_vertex_charts;
   std::vector<EdgeManifoldChart> m_edge_charts;
   std::vector<FaceManifoldChart> m_face_charts;
+
+public:
+  // code added for C1 constraints
+
+  // edge vectors
+  void get_u_ij(Eigen::SparseMatrix<double> &u_ij_u,
+                Eigen::SparseMatrix<double> &u_ij_v) const;
+
+  // reindexing matrices
+  void get_P_G2F(Eigen::SparseMatrix<int64_t> &P_G2F) const;
+  void get_P_G2E(Eigen::SparseMatrix<int64_t> &P_G2E) const;
+  void get_P_d_E(Eigen::SparseMatrix<int64_t> &P_d_E) const;
+  void get_P_d_M(Eigen::SparseMatrix<int64_t> &P_d_M) const;
+
+  void compute_face_edge_lagrange_node_indices();
+  void compute_edge_global_uv_mappings();
+  void compute_face_global_uv_mappings();
+  void generate_lagrange_nodes();
+
+  // per face control points indices
+  // b0 b1 b2 b01 b10 b12 b21 b20 b02 b01^c b12^c b20^c b0c bc0 b1c bc1 b2c
+  // bc2 bc
+  std::vector<std::pair<int64_t, PlanarPoint>>
+      m_lagrange_nodes; // (face_idx, barycentric coord)
+  std::map<int64_t, int64_t> v_to_lagrange_node_map; // vidx to node idx
+
+  // edge with v_idx to two nodes idx on edge
+  std::map<std::pair<int64_t, int64_t>, std::array<int64_t, 4>>
+      m_boundary_edge_to_node_map;
 };
 
 /// Representation for an affine manifold with a global parametrization, which
@@ -382,7 +437,7 @@ public:
   /// @param[out] uv_coords: global uv position for the given vertex
   void get_vertex_global_uv(Index vertex_index, PlanarPoint &uv_coords) const;
 
-private:
+public:
   bool is_valid_parametric_affine_manifold() const;
 };
 

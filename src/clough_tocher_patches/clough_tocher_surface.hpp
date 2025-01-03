@@ -27,6 +27,8 @@ public:
   void sample_to_obj(std::string filename, int sample_size = 10);
 
   void write_cubic_surface_to_msh_with_conn(std::string filename);
+  void write_cubic_surface_to_msh_with_conn_from_lagrange_nodes(
+      std::string filename);
 
 private:
   void generate_face_normals(const Eigen::MatrixXd &V,

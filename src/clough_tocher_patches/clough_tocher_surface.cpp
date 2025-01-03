@@ -247,7 +247,26 @@ void CloughTocherSurface::write_cubic_surface_to_msh_with_conn(
 
   Eigen::MatrixXd edges;
   igl::edges(F, edges);
-  std::cout << edges.rows() << std::endl;
+
+  Eigen::MatrixXd edges_uv;
+  igl::edges(m_affine_manifold.get_F_uv(), edges_uv);
+
+  // checks
+  std::cout << "#3d face edges: " << edges.rows() << std::endl;
+  std::cout << "#uv face edges: " << edges_uv.rows() << std::endl;
+  std::cout << "#edge charts: " << m_affine_manifold.m_edge_charts.size()
+            << std::endl;
+  for (const auto &e : m_affine_manifold.m_edge_charts) {
+    if (e.is_boundary) {
+      std::cout << "boundary" << std::endl;
+    }
+  }
+
+  for (const auto &v : m_affine_manifold.m_vertex_charts) {
+    if (v.is_cone) {
+      std::cout << "cone" << std::endl;
+    }
+  }
 
   // compute corner vertices first
   for (size_t p_idx = 0; p_idx < m_patches.size(); p_idx++) {
@@ -405,4 +424,112 @@ void CloughTocherSurface::write_cubic_surface_to_msh_with_conn(
   for (const auto &pair : v_to_v_map) {
     v_map_file << pair.first << " " << pair.second << std::endl;
   }
+}
+
+void CloughTocherSurface::
+    write_cubic_surface_to_msh_with_conn_from_lagrange_nodes(
+        std::string filename) {
+  std::ofstream file(filename + ".msh");
+
+  /*
+    $MeshFormat
+      4.1 0 8     MSH4.1, ASCII
+      $EndMeshFormat
+    */
+
+  file << "$MeshFormat\n"
+       << "4.1 0 8\n"
+       << "$EndMeshFormat\n";
+
+  /*
+  subtri0: 0 1 18 3 4 14 15 13 12 9
+  b0 b1 bc b01 b10 b1c bc1 bc0 b0c b01^c
+  subtri1: 1 2 18 5 6 16 17 15 14 10
+  b1 b2 bc b12 b21 b2c bc2 bc1 b1c b12^c
+  subtri2: 2 0 18 7 8 12 13 17 16 11
+  b2 b0 bc b20 b02 b0c bc0 bc2 b2c b20^c
+  */
+
+  m_affine_manifold.generate_lagrange_nodes();
+
+  const auto &lagrange_nodes = m_affine_manifold.m_lagrange_nodes;
+  // evaluate vertices
+  std::vector<Eigen::Vector3d> vertices;
+  for (size_t i = 0; i < lagrange_nodes.size(); ++i) {
+    const auto patch_idx = lagrange_nodes[i].first;
+    const auto bc = lagrange_nodes[i].second;
+    auto z = m_patches[patch_idx].CT_eval(bc[0], bc[1], 1. - bc[0] - bc[1]);
+    vertices.push_back(z);
+  }
+
+  // build faces
+  std::vector<std::array<int64_t, 10>> faces;
+  for (const auto &f_chart : m_affine_manifold.m_face_charts) {
+    const auto &l_nodes = f_chart.lagrange_nodes;
+    faces.push_back(
+        {{l_nodes[0], l_nodes[1], l_nodes[18], l_nodes[3], l_nodes[4],
+          l_nodes[14], l_nodes[15], l_nodes[13], l_nodes[12], l_nodes[9]}});
+    faces.push_back(
+        {{l_nodes[1], l_nodes[2], l_nodes[18], l_nodes[5], l_nodes[6],
+          l_nodes[16], l_nodes[17], l_nodes[15], l_nodes[14], l_nodes[10]}});
+    faces.push_back(
+        {{l_nodes[2], l_nodes[0], l_nodes[18], l_nodes[7], l_nodes[8],
+          l_nodes[12], l_nodes[13], l_nodes[17], l_nodes[16], l_nodes[11]}});
+  }
+
+  file << "$Nodes\n";
+
+  const size_t node_size = vertices.size();
+  file << "1 " << node_size << " 1 " << node_size << "\n";
+  file << "2 1 0 " << node_size << "\n";
+
+  for (size_t i = 0; i < node_size; ++i) {
+    file << i << "\n";
+  }
+
+  for (size_t i = 0; i < node_size; ++i) {
+    file << vertices[i][0] << " " << vertices[i][1] << " " << vertices[i][2]
+         << "\n";
+  }
+
+  file << "$EndNodes\n";
+
+  // write elements
+  // assert(m_patches.size() * 3 == faces.size());
+  const size_t element_size = faces.size();
+
+  file << "$Elements\n";
+  file << "1 " << element_size << " 1 " << element_size << "\n";
+  file << "2 1 21 " << element_size << "\n";
+  for (size_t i = 0; i < element_size; ++i) {
+    file << i + 1 << " ";
+    for (int j = 0; j < 10; ++j) {
+      file << faces[i][j] << " ";
+    }
+    file << "\n";
+  }
+
+  file << "$EndElements\n";
+
+  // mark cones
+  // const auto &cone_indices = m_affine_manifold.generate_cones();
+
+  // file << "$NodeData\n";
+  // file << "1\n";                       // num string tags
+  // file << "\"Cone\"\n";                // string tag
+  // file << "1\n";                       // num real tags
+  // file << "0.0\n";                     // time step starts
+  // file << "3\n";                       // three integer tags
+  // file << "0\n";                       // time step
+  // file << "1\n";                       // num field
+  // file << cone_indices.size() << "\n"; // num associated nodal values
+  // for (const auto &idx : cone_indices) {
+  //   file << v_to_v_map[idx] + 1 << " 1.0\n";
+  // }
+  // file << "$EndNodeData\n";
+
+  // std::ofstream v_map_file(filename + "_input_v_to_output_v_map.txt");
+  // for (const auto &pair : v_to_v_map) {
+  //   v_map_file << pair.first << " " << pair.second << std::endl;
+  // }
 }
