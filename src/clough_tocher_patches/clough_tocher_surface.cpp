@@ -452,7 +452,7 @@ void CloughTocherSurface::
   b2 b0 bc b20 b02 b0c bc0 bc2 b2c b20^c
   */
 
-  m_affine_manifold.generate_lagrange_nodes();
+  // m_affine_manifold.generate_lagrange_nodes();
 
   const auto &lagrange_nodes = m_affine_manifold.m_lagrange_nodes;
   // evaluate vertices
@@ -485,7 +485,7 @@ void CloughTocherSurface::
   file << "1 " << node_size << " 1 " << node_size << "\n";
   file << "2 1 0 " << node_size << "\n";
 
-  for (size_t i = 0; i < node_size; ++i) {
+  for (size_t i = 1; i <= node_size; ++i) {
     file << i << "\n";
   }
 
@@ -506,7 +506,7 @@ void CloughTocherSurface::
   for (size_t i = 0; i < element_size; ++i) {
     file << i + 1 << " ";
     for (int j = 0; j < 10; ++j) {
-      file << faces[i][j] << " ";
+      file << faces[i][j] + 1 << " ";
     }
     file << "\n";
   }
@@ -530,10 +530,10 @@ void CloughTocherSurface::
   // }
   // file << "$EndNodeData\n";
 
-  // std::ofstream v_map_file(filename + "_input_v_to_output_v_map.txt");
-  // for (const auto &pair : v_to_v_map) {
-  //   v_map_file << pair.first << " " << pair.second << std::endl;
-  // }
+  std::ofstream v_map_file(filename + "_input_v_to_output_v_map.txt");
+  for (const auto &pair : m_affine_manifold.v_to_lagrange_node_map) {
+    v_map_file << pair.first << " " << pair.second << std::endl;
+  }
 }
 
 void CloughTocherSurface::P_G2F(Eigen::SparseMatrix<double> &m) {
@@ -584,6 +584,8 @@ void CloughTocherSurface::C_F_int(Eigen::SparseMatrix<double> &m) {
   }
 
   m.resize(7 * F_cnt, N_L);
+  std::cout << 7 * F_cnt << " " << N_L << std::endl;
 
   m = C_diag * p_g2f;
+  std::cout << m.rows() << " " << m.cols() << std::endl;
 }

@@ -6,6 +6,7 @@
 #include "globals.cpp"
 #include "twelve_split_spline.h"
 #include <CLI/CLI.hpp>
+#include <fstream>
 #include <igl/readOBJ.h>
 #include <igl/writeOBJ.h>
 
@@ -66,6 +67,8 @@ int main(int argc, char *argv[]) {
                                  fit_matrix, energy_hessian,
                                  energy_hessian_inverse);
 
+  ct_surface.m_affine_manifold.generate_lagrange_nodes();
+
   ct_surface.write_coeffs_to_obj("test_cubic_points.obj");
 
   ct_surface.sample_to_obj("test_sample_cubic_points.obj", 25);
@@ -75,6 +78,12 @@ int main(int argc, char *argv[]) {
 
   ct_surface.write_cubic_surface_to_msh_with_conn_from_lagrange_nodes(
       "icosphere_from_lagrange_nodes");
+
+  Eigen::SparseMatrix<double> c_f_int;
+  ct_surface.C_F_int(c_f_int);
+
+  std::ofstream file("interior_constraint_matrix.txt");
+  file << c_f_int;
 
   return 0;
 }

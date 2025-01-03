@@ -1148,6 +1148,10 @@ void AffineManifold::generate_lagrange_nodes() {
     // TODO:
     // maybe outside this loop
   }
+
+  assert(m_lagrange_nodes.size() == 10 * m_face_charts.size() +
+                                        2 * m_edge_charts.size() +
+                                        m_vertex_charts.size());
 }
 
 /*
@@ -1157,8 +1161,8 @@ get constraint matrices
 void AffineManifold::get_u_ij(Eigen::SparseMatrix<double> &u_ij_u,
                               Eigen::SparseMatrix<double> &u_ij_v) const {
   const int64_t N_L = m_lagrange_nodes.size();
-  assert(N_L == 10 * m_face_charts.size() + 2 * m_edge_charts.size() +
-                    m_vertex_charts.size());
+  assert(size_t(N_L) == 10 * m_face_charts.size() + 2 * m_edge_charts.size() +
+                            m_vertex_charts.size());
   u_ij_u.resize(N_L, N_L);
   u_ij_v.resize(N_L, N_L);
 
