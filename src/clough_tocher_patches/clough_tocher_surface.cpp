@@ -4,6 +4,8 @@
 #include <igl/edges.h>
 #include <igl/per_vertex_normals.h>
 
+#include "clough_tocher_constraint_matrices.hpp"
+
 CloughTocherSurface::CloughTocherSurface() {}
 
 CloughTocherSurface::CloughTocherSurface(
@@ -532,4 +534,56 @@ void CloughTocherSurface::
   // for (const auto &pair : v_to_v_map) {
   //   v_map_file << pair.first << " " << pair.second << std::endl;
   // }
+}
+
+void CloughTocherSurface::P_G2F(Eigen::SparseMatrix<double> &m) {
+  const auto N_L = m_affine_manifold.m_lagrange_nodes.size();
+  const auto F_cnt = m_affine_manifold.m_face_charts.size();
+
+  m.resize(19 * F_cnt, N_L);
+
+  std::vector<Eigen::Triplet<double>> triplets;
+
+  const auto &face_charts = m_affine_manifold.m_face_charts;
+  for (size_t i = 0; i < face_charts.size(); ++i) {
+    for (int j = 0; j < 19; ++j) {
+      triplets.emplace_back(i * 19 + j, face_charts[i].lagrange_nodes[j], 1);
+    }
+  }
+
+  m.setFromTriplets(triplets.begin(), triplets.end());
+}
+
+void CloughTocherSurface::C_L_int(Eigen::Matrix<double, 7, 19> &m) {
+  Eigen::Matrix<double, 12, 12> L_L2d_ind = L_L2d_ind_m();
+  Eigen::Matrix<double, 7, 12> L_d2L_dep = L_d2L_dep_m();
+
+  Eigen::Matrix<double, 7, 12> neg_L_dot_L = -L_d2L_dep * L_L2d_ind;
+  m.block<7, 12>(0, 0) = neg_L_dot_L;
+  m.block<7, 7>(0, 12) = Eigen::MatrixXd::Identity(7, 7);
+}
+
+void CloughTocherSurface::C_F_int(Eigen::SparseMatrix<double> &m) {
+  const auto N_L = m_affine_manifold.m_lagrange_nodes.size();
+  const auto F_cnt = m_affine_manifold.m_face_charts.size();
+
+  Eigen::SparseMatrix<double> p_g2f;
+  P_G2F(p_g2f);
+  Eigen::Matrix<double, 7, 19> c_l_int;
+  C_L_int(c_l_int);
+
+  Eigen::SparseMatrix<double> C_diag;
+  C_diag.resize(7 * F_cnt, 19 * F_cnt);
+
+  for (size_t i = 0; i < F_cnt; ++i) {
+    for (int j = 0; j < 7; ++j) {
+      for (int k = 0; k < 19; ++k) {
+        C_diag.insert(i * 7 + j, i * 19 + k) = c_l_int(j, k);
+      }
+    }
+  }
+
+  m.resize(7 * F_cnt, N_L);
+
+  m = C_diag * p_g2f;
 }

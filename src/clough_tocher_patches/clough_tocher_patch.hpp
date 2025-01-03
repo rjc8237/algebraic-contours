@@ -30,7 +30,7 @@ public:
 
   std::array<Eigen::Matrix<double, 10, 3>, 3> get_coeffs() const;
 
-private:
+public:
   //   std::array<Eigen::Matrix<double, 12, 1>, 3> m_boundary_data;
 
   std::array<TriangleCornerFunctionData, 3> m_corner_data;

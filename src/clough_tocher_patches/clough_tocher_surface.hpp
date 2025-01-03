@@ -30,15 +30,23 @@ public:
   void write_cubic_surface_to_msh_with_conn_from_lagrange_nodes(
       std::string filename);
 
-private:
+public:
   void generate_face_normals(const Eigen::MatrixXd &V,
                              const AffineManifold &affine_manifold,
                              Eigen::MatrixXd &N);
 
-private:
+public:
   std::vector<CloughTocherPatch> m_patches;
 
   AffineManifold m_affine_manifold;
   std::vector<std::array<TriangleCornerFunctionData, 3>> m_corner_data;
   std::vector<std::array<TriangleMidpointFunctionData, 3>> m_midpoint_data;
+
+public:
+  // constraint matrices
+
+  // interior constraints
+  void P_G2F(Eigen::SparseMatrix<double> &m);
+  void C_L_int(Eigen::Matrix<double, 7, 19> &m);
+  void C_F_int(Eigen::SparseMatrix<double> &m);
 };

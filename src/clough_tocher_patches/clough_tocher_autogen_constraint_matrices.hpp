@@ -234,7 +234,7 @@ inline void L_d2L_dep_matrix(double L[7][12]) {
   L[6][11] = 4.0 / 81.0;
 }
 
-inline void c_e(double c[5]) {
+inline void c_e_matrix(double c[5]) {
   c[0] = 3 / 2;
   c[1] = -3 / 2;
   c[2] = 1 / 4;

@@ -33,7 +33,7 @@ file.write(ss)
 file.write("}\n\n")
 
 # c_e
-file.write("inline void c_e(double c[5]){\n")
+file.write("inline void c_e_matrix(double c[5]){\n")
 for i in range(len(c_e)):
     file.write("c[{}] = {};\n".format(i, c_e[i]))
 file.write("}\n\n")
