@@ -6,4 +6,5 @@ logs*
 *.DS_Store
 *.so
 .DS_Store
-
+*vscode*
+*pycache*

@@ -9,6 +9,8 @@
 
 #include "vertex_circulator.h"
 
+#include <map>
+
 // *************
 // Cone Manifold
 // *************
@@ -17,18 +19,12 @@
 // Public Methods
 // **************
 
-AffineManifold::AffineManifold()
-{
-  clear();
-}
+AffineManifold::AffineManifold() { clear(); }
 
-AffineManifold::AffineManifold(const Eigen::MatrixXi& F,
-                               const MatrixXr& global_uv,
-                               const Eigen::MatrixXi& F_uv)
-  : m_F(F)
-  , m_global_uv(global_uv)
-  , m_F_uv(F_uv)
-{
+AffineManifold::AffineManifold(const Eigen::MatrixXi &F,
+                               const MatrixXr &global_uv,
+                               const Eigen::MatrixXi &F_uv)
+    : m_F(F), m_global_uv(global_uv), m_F_uv(F_uv) {
   // Check the input
 #if CHECK_VALIDITY
   if (!is_manifold(F)) {
@@ -51,7 +47,7 @@ AffineManifold::AffineManifold(const Eigen::MatrixXi& F,
   // Build halfedge
   m_halfedge = Halfedge(F, m_corner_to_he, m_he_to_corner);
   std::vector<Halfedge::Index> he_to_edge =
-    m_halfedge.get_halfedge_to_edge_map();
+      m_halfedge.get_halfedge_to_edge_map();
   build_corner_to_edge_map(m_corner_to_he, he_to_edge, m_corner_to_edge);
 
   // Build edge lengths and charts from the global uv
@@ -73,58 +69,40 @@ AffineManifold::AffineManifold(const Eigen::MatrixXi& F,
   }
 }
 
-AffineManifold::Index
-AffineManifold::num_faces() const
-{
-  return m_F.rows();
-}
+AffineManifold::Index AffineManifold::num_faces() const { return m_F.rows(); }
 
-AffineManifold::Index
-AffineManifold::num_vertices() const
-{
+AffineManifold::Index AffineManifold::num_vertices() const {
   return m_vertex_charts.size();
 }
 
-Eigen::MatrixXi const&
-AffineManifold::get_faces() const
-{
-  return m_F;
-}
+Eigen::MatrixXi const &AffineManifold::get_faces() const { return m_F; }
 
-Eigen::MatrixXi const&
-AffineManifold::get_F_uv() const
-{
-  return m_F_uv;
-}
+Eigen::MatrixXi const &AffineManifold::get_F_uv() const { return m_F_uv; }
 
-VertexManifoldChart const&
-AffineManifold::get_vertex_chart(AffineManifold::Index vertex_index) const
-{
+VertexManifoldChart const &
+AffineManifold::get_vertex_chart(AffineManifold::Index vertex_index) const {
   return m_vertex_charts[vertex_index];
 }
 
-EdgeManifoldChart const&
-AffineManifold::get_edge_chart(Index face_index, Index face_vertex_index) const
-{
+EdgeManifoldChart const &
+AffineManifold::get_edge_chart(Index face_index,
+                               Index face_vertex_index) const {
   Index edge_index = m_corner_to_edge[face_index][face_vertex_index];
   return m_edge_charts[edge_index];
 }
 
-FaceManifoldChart const&
-AffineManifold::get_face_chart(Index face_index) const
-{
+FaceManifoldChart const &
+AffineManifold::get_face_chart(Index face_index) const {
   return m_face_charts[face_index];
 }
 
-void
-AffineManifold::get_face_corner_charts(
-  AffineManifold::Index face_index,
-  std::array<Matrix2x2r, 3>& corner_uv_positions) const
-{
+void AffineManifold::get_face_corner_charts(
+    AffineManifold::Index face_index,
+    std::array<Matrix2x2r, 3> &corner_uv_positions) const {
   for (Eigen::Index i = 0; i < 3; ++i) {
     // Get the chart for vertex i in the given face
     int vertex_index = m_F(face_index, i);
-    VertexManifoldChart const& chart = m_vertex_charts[vertex_index];
+    VertexManifoldChart const &chart = m_vertex_charts[vertex_index];
 
     // Iterate over the one ring of face vertex i
     for (size_t j = 0; j < chart.face_one_ring.size(); ++j) {
@@ -137,23 +115,21 @@ AffineManifold::get_face_corner_charts(
       int first_edge = j;
       int second_edge = j + 1;
       corner_uv_positions[i].row(0) =
-        chart.one_ring_uv_positions.row(first_edge);
+          chart.one_ring_uv_positions.row(first_edge);
       corner_uv_positions[i].row(1) =
-        chart.one_ring_uv_positions.row(second_edge);
+          chart.one_ring_uv_positions.row(second_edge);
       break;
     }
   }
 }
 
-void
-AffineManifold::get_face_edge_charts(
-  AffineManifold::Index face_index,
-  std::array<Matrix3x2r, 3>& face_edge_uv_positions) const
-{
+void AffineManifold::get_face_edge_charts(
+    AffineManifold::Index face_index,
+    std::array<Matrix3x2r, 3> &face_edge_uv_positions) const {
   // Iterate over edges
   for (size_t i = 0; i < 3; ++i) {
     // Get the chart for edge jk opposite vertex i in the given face
-    EdgeManifoldChart const& chart = get_edge_chart(face_index, i);
+    EdgeManifoldChart const &chart = get_edge_chart(face_index, i);
 
     // Break into cases depending on if the face is the top or bottom face in
     // the chart
@@ -171,18 +147,15 @@ AffineManifold::get_face_edge_charts(
   }
 }
 
-void
-AffineManifold::get_face_global_uv(
-  AffineManifold::Index face_index,
-  std::array<PlanarPoint, 3>& face_uv_positions) const
-{
+void AffineManifold::get_face_global_uv(
+    AffineManifold::Index face_index,
+    std::array<PlanarPoint, 3> &face_uv_positions) const {
   face_uv_positions = get_face_chart(face_index).face_uv_positions;
 }
 
 double
-AffineManifold::compute_curvature(AffineManifold::Index vertex_index) const
-{
-  VertexManifoldChart const& chart = m_vertex_charts[vertex_index];
+AffineManifold::compute_curvature(AffineManifold::Index vertex_index) const {
+  VertexManifoldChart const &chart = m_vertex_charts[vertex_index];
 
   // Get zero uv coordinate (location of the central vertex)
   PlanarPoint zero;
@@ -192,9 +165,8 @@ AffineManifold::compute_curvature(AffineManifold::Index vertex_index) const
   double cone_angle = 0.0;
   for (size_t j = 0; j < chart.face_one_ring.size(); ++j) {
     cone_angle +=
-      angle_from_positions<2>(zero,
-                              chart.one_ring_uv_positions.row(j),
-                              chart.one_ring_uv_positions.row(j + 1));
+        angle_from_positions<2>(zero, chart.one_ring_uv_positions.row(j),
+                                chart.one_ring_uv_positions.row(j + 1));
   }
 
   // Compute geodesic curvature for boundary vertices and Gaussian curvature for
@@ -206,15 +178,11 @@ AffineManifold::compute_curvature(AffineManifold::Index vertex_index) const
   }
 }
 
-bool
-AffineManifold::is_boundary(AffineManifold::Index vertex_index) const
-{
+bool AffineManifold::is_boundary(AffineManifold::Index vertex_index) const {
   return get_vertex_chart(vertex_index).is_boundary;
 }
 
-bool
-AffineManifold::is_flat(AffineManifold::Index vertex_index) const
-{
+bool AffineManifold::is_flat(AffineManifold::Index vertex_index) const {
   // All vertices with zero curvature are flat
   if (float_equal_zero(compute_curvature(vertex_index), 1e-5))
     return true;
@@ -226,10 +194,8 @@ AffineManifold::is_flat(AffineManifold::Index vertex_index) const
   return false;
 }
 
-void
-AffineManifold::compute_flat_vertices(
-  std::vector<AffineManifold::Index>& flat_vertices)
-{
+void AffineManifold::compute_flat_vertices(
+    std::vector<AffineManifold::Index> &flat_vertices) {
   flat_vertices.clear();
   flat_vertices.reserve(num_vertices());
 
@@ -240,26 +206,22 @@ AffineManifold::compute_flat_vertices(
   }
 }
 
-void
-AffineManifold::compute_cones(std::vector<AffineManifold::Index>& cones) const
-{
+void AffineManifold::compute_cones(
+    std::vector<AffineManifold::Index> &cones) const {
   cones.clear();
   cones.reserve(num_vertices());
 
   for (Index vertex_index = 0; vertex_index < num_vertices(); ++vertex_index) {
     if (!is_flat(vertex_index)) {
-      spdlog::debug("Getting cone {} of curvature {}",
-                    vertex_index,
+      spdlog::debug("Getting cone {} of curvature {}", vertex_index,
                     compute_curvature(vertex_index));
       cones.push_back(vertex_index);
     }
   }
 }
 
-void
-AffineManifold::compute_cones_corners(
-  std::vector<std::array<bool, 3>>& is_cone_corner) const
-{
+void AffineManifold::compute_cones_corners(
+    std::vector<std::array<bool, 3>> &is_cone_corner) const {
   is_cone_corner.resize(num_faces());
   for (Index fi = 0; fi < num_faces(); ++fi) {
     for (size_t k = 0; k < 3; ++k) {
@@ -268,10 +230,8 @@ AffineManifold::compute_cones_corners(
   }
 }
 
-void
-AffineManifold::compute_cone_points(const MatrixXr& V,
-                                    MatrixXr& cone_points) const
-{
+void AffineManifold::compute_cone_points(const MatrixXr &V,
+                                         MatrixXr &cone_points) const {
   // Compute the cone indices
   std::vector<Index> cones;
   compute_cones(cones);
@@ -285,18 +245,14 @@ AffineManifold::compute_cone_points(const MatrixXr& V,
   }
 }
 
-std::vector<AffineManifold::Index>
-AffineManifold::generate_cones() const
-{
+std::vector<AffineManifold::Index> AffineManifold::generate_cones() const {
   std::vector<Index> cones;
   compute_cones(cones);
   return cones;
 }
 
-void
-AffineManifold::compute_boundary_vertices(
-  std::vector<AffineManifold::Index>& boundary_vertices) const
-{
+void AffineManifold::compute_boundary_vertices(
+    std::vector<AffineManifold::Index> &boundary_vertices) const {
   boundary_vertices.clear();
   boundary_vertices.reserve(num_vertices());
 
@@ -308,29 +264,23 @@ AffineManifold::compute_boundary_vertices(
 }
 
 std::vector<AffineManifold::Index>
-AffineManifold::generate_boundary_vertices() const
-{
+AffineManifold::generate_boundary_vertices() const {
   std::vector<Index> boundary_vertices;
   compute_boundary_vertices(boundary_vertices);
   return boundary_vertices;
 }
 
-void
-AffineManifold::mark_cone_adjacent_vertex(AffineManifold::Index vertex_index)
-{
+void AffineManifold::mark_cone_adjacent_vertex(
+    AffineManifold::Index vertex_index) {
   m_vertex_charts[vertex_index].is_cone_adjacent = true;
 }
 
-void
-AffineManifold::mark_cone_adjacent_face(AffineManifold::Index face_index)
-{
+void AffineManifold::mark_cone_adjacent_face(AffineManifold::Index face_index) {
   m_face_charts[face_index].is_cone_adjacent = true;
 }
 
-void
-AffineManifold::cut_cone_edges()
-{
-  Eigen::MatrixXi const& F = get_faces();
+void AffineManifold::cut_cone_edges() {
+  Eigen::MatrixXi const &F = get_faces();
 
   // Get cone vertices
   std::vector<Index> cones;
@@ -340,14 +290,14 @@ AffineManifold::cut_cone_edges()
   for (size_t i = 0; i < cones.size(); ++i) {
     // Get cone vertex chart
     Index vi = cones[i];
-    VertexManifoldChart const& vertex_chart = get_vertex_chart(vi);
+    VertexManifoldChart const &vertex_chart = get_vertex_chart(vi);
 
     // Get edge chart adjacent to the cone edge
     Index face_index = vertex_chart.face_one_ring[0];
     Eigen::Index face_vertex_index =
-      find_face_vertex_index(F.row(face_index), vi);
-    EdgeManifoldChart const& edge_chart =
-      get_edge_chart(face_index, face_vertex_index);
+        find_face_vertex_index(F.row(face_index), vi);
+    EdgeManifoldChart const &edge_chart =
+        get_edge_chart(face_index, face_vertex_index);
 
     // Mark edge and endpoints as boundaries
     Index edge_index = m_corner_to_edge[face_index][face_vertex_index];
@@ -359,23 +309,18 @@ AffineManifold::cut_cone_edges()
   }
 }
 
-MatrixXr const&
-AffineManifold::get_global_uv() const
-{
-  return m_global_uv;
-}
+MatrixXr const &AffineManifold::get_global_uv() const { return m_global_uv; }
 
-void
-AffineManifold::add_to_viewer(const MatrixXr& V, Eigen::Matrix<double, 3, 1> color) const
-{
+void AffineManifold::add_to_viewer(const MatrixXr &V,
+                                   Eigen::Matrix<double, 3, 1> color) const {
   polyscope::init();
 
   // Add manifold
   Eigen::MatrixXi const F = get_faces();
   polyscope::registerSurfaceMesh("cone_manifold", V, F);
   polyscope::getSurfaceMesh("cone_manifold")
-    ->setEdgeWidth(1)
-    ->setSurfaceColor(glm::vec3(color[0], color[1], color[2]));
+      ->setEdgeWidth(1)
+      ->setSurfaceColor(glm::vec3(color[0], color[1], color[2]));
 
   // Add cone points
   MatrixXr cone_points;
@@ -384,30 +329,23 @@ AffineManifold::add_to_viewer(const MatrixXr& V, Eigen::Matrix<double, 3, 1> col
   polyscope::getPointCloud("cones")->setPointColor(glm::vec3(0.5, 0.0, 0.0));
 }
 
-void
-AffineManifold::view(const MatrixXr& V) const
-{
+void AffineManifold::view(const MatrixXr &V) const {
   add_to_viewer(V);
   polyscope::show();
 }
 
-void
-AffineManifold::screenshot(const std::string& filename,
-                           const MatrixXr& V,
-                           SpatialVector camera_position,
-                           SpatialVector camera_target,
-                           bool use_orthographic) const
-{
+void AffineManifold::screenshot(const std::string &filename, const MatrixXr &V,
+                                SpatialVector camera_position,
+                                SpatialVector camera_target,
+                                bool use_orthographic) const {
   // Add the contour network to the surface
   add_to_viewer(V);
 
   // Build the cameras for the viewer
-  glm::vec3 glm_camera_position = { camera_position[0],
-                                    camera_position[1],
-                                    camera_position[2] };
-  glm::vec3 glm_camera_target = { camera_target[0],
-                                  camera_target[1],
-                                  camera_target[2] };
+  glm::vec3 glm_camera_position = {camera_position[0], camera_position[1],
+                                   camera_position[2]};
+  glm::vec3 glm_camera_target = {camera_target[0], camera_target[1],
+                                 camera_target[2]};
 
   // Set up the cameras
   polyscope::view::lookAt(glm_camera_position, glm_camera_target);
@@ -421,9 +359,7 @@ AffineManifold::screenshot(const std::string& filename,
   polyscope::removeAllStructures();
 }
 
-void
-AffineManifold::clear()
-{
+void AffineManifold::clear() {
   m_F.setZero(0, 0);
   m_corner_to_he.clear();
   m_corner_to_edge.clear();
@@ -444,12 +380,9 @@ AffineManifold::clear()
 // *****************
 
 // Build isometric charts for a surface with a flat metric
-void
-AffineManifold::build_vertex_charts_from_lengths(
-  const Eigen::MatrixXi& F,
-  const std::vector<std::vector<double>>& l,
-  std::vector<VertexManifoldChart>& vertex_charts) const
-{
+void AffineManifold::build_vertex_charts_from_lengths(
+    const Eigen::MatrixXi &F, const std::vector<std::vector<double>> &l,
+    std::vector<VertexManifoldChart> &vertex_charts) const {
   Index num_vertices = F.maxCoeff() + 1;
 
   // Build vertex circulator
@@ -467,9 +400,7 @@ AffineManifold::build_vertex_charts_from_lengths(
                                    vertex_charts[vertex_index].face_one_ring);
 
     // Layout the vertices according to the given flat metric
-    layout_one_ring(F,
-                    l,
-                    vertex_index,
+    layout_one_ring(F, l, vertex_index,
                     vertex_charts[vertex_index].vertex_one_ring,
                     vertex_charts[vertex_index].face_one_ring,
                     vertex_charts[vertex_index].one_ring_uv_positions);
@@ -485,13 +416,10 @@ AffineManifold::build_vertex_charts_from_lengths(
   }
 }
 
-void
-AffineManifold::build_edge_charts_from_lengths(
-  const Eigen::MatrixXi& F,
-  const Halfedge& halfedge,
-  const std::vector<std::vector<double>>& l,
-  std::vector<EdgeManifoldChart>& edge_charts) const
-{
+void AffineManifold::build_edge_charts_from_lengths(
+    const Eigen::MatrixXi &F, const Halfedge &halfedge,
+    const std::vector<std::vector<double>> &l,
+    std::vector<EdgeManifoldChart> &edge_charts) const {
   // Build edge charts
   Index num_edges = halfedge.num_edges();
   edge_charts.resize(num_edges);
@@ -510,7 +438,7 @@ AffineManifold::build_edge_charts_from_lengths(
     chart.right_vertex_index = halfedge.halfedge_to_head_vertex(he_top);
     chart.top_vertex_index = halfedge.halfedge_to_head_vertex(he_top_next);
     chart.bottom_vertex_index =
-      halfedge.halfedge_to_head_vertex(he_bottom_next);
+        halfedge.halfedge_to_head_vertex(he_bottom_next);
     chart.is_boundary = halfedge.is_boundary_edge(edge_index);
 
     // Get lengths of the edges of the top triangle
@@ -526,8 +454,8 @@ AffineManifold::build_edge_charts_from_lengths(
     chart.left_vertex_uv_position = PlanarPoint(0, 0);
     chart.right_vertex_uv_position = PlanarPoint(1.0, 0);
     assert(lij > 0);
-    chart.top_vertex_uv_position =
-      layout_next_vertex(chart.right_vertex_uv_position, ljk / lij, lki / lij);
+    chart.top_vertex_uv_position = layout_next_vertex(
+        chart.right_vertex_uv_position, ljk / lij, lki / lij);
 
     // Get center of the target edge for a later shift
     PlanarPoint center = 0.5 * chart.right_vertex_uv_position;
@@ -544,7 +472,7 @@ AffineManifold::build_edge_charts_from_lengths(
 
       // Construct the last vertex counterclockwise and then reflect it
       PlanarPoint uvl_reflected = layout_next_vertex(
-        chart.right_vertex_uv_position, llj / lij, lil / lij);
+          chart.right_vertex_uv_position, llj / lij, lil / lij);
       chart.bottom_vertex_uv_position = reflect_across_x_axis(uvl_reflected);
 
       // Shift all vertices so the midpoint is at the origin
@@ -567,13 +495,10 @@ AffineManifold::build_edge_charts_from_lengths(
   }
 }
 
-void
-AffineManifold::build_face_charts(
-  const Eigen::MatrixXi& F,
-  const MatrixXr& global_uv,
-  const Eigen::MatrixXi& F_uv,
-  std::vector<FaceManifoldChart>& face_charts) const
-{
+void AffineManifold::build_face_charts(
+    const Eigen::MatrixXi &F, const MatrixXr &global_uv,
+    const Eigen::MatrixXi &F_uv,
+    std::vector<FaceManifoldChart> &face_charts) const {
   Index num_faces = F.rows();
   face_charts.resize(num_faces);
   for (Index face_index = 0; face_index < num_faces; ++face_index) {
@@ -582,18 +507,16 @@ AffineManifold::build_face_charts(
          ++face_vertex_index) {
       Index uv_vertex_index = F_uv(face_index, face_vertex_index);
       face_charts[face_index].face_uv_positions[face_vertex_index] =
-        global_uv.row(uv_vertex_index);
+          global_uv.row(uv_vertex_index);
     }
   }
 }
 
 // Compose corner to halfedge and halfedge to edge maps
-void
-AffineManifold::build_corner_to_edge_map(
-  const std::vector<std::vector<Halfedge::Index>>& corner_to_he,
-  const std::vector<Halfedge::Index>& he_to_edge,
-  std::vector<std::vector<Halfedge::Index>>& corner_to_edge) const
-{
+void AffineManifold::build_corner_to_edge_map(
+    const std::vector<std::vector<Halfedge::Index>> &corner_to_he,
+    const std::vector<Halfedge::Index> &he_to_edge,
+    std::vector<std::vector<Halfedge::Index>> &corner_to_edge) const {
   Index num_faces = corner_to_he.size();
   corner_to_edge.resize(num_faces);
 
@@ -609,11 +532,9 @@ AffineManifold::build_corner_to_edge_map(
 
 // Layout the next vertex in a triangle with given lengths and the current point
 // position
-PlanarPoint
-AffineManifold::layout_next_vertex(const PlanarPoint& current_point,
-                                   double next_edge_length,
-                                   double prev_edge_length) const
-{
+PlanarPoint AffineManifold::layout_next_vertex(const PlanarPoint &current_point,
+                                               double next_edge_length,
+                                               double prev_edge_length) const {
   // Get the current point and its rotation
   PlanarPoint p0 = current_point;
   PlanarPoint p0_perp(-p0[1], p0[0]);
@@ -636,14 +557,12 @@ AffineManifold::layout_next_vertex(const PlanarPoint& current_point,
 }
 
 // Layout the one ring around the given vertex from the lengths
-void
-AffineManifold::layout_one_ring(const Eigen::MatrixXi& F,
-                                const std::vector<std::vector<double>>& l,
-                                int vertex_index,
-                                const std::vector<int>& vertex_one_ring,
-                                const std::vector<int>& face_one_ring,
-                                MatrixXr& one_ring_uv_positions) const
-{
+void AffineManifold::layout_one_ring(const Eigen::MatrixXi &F,
+                                     const std::vector<std::vector<double>> &l,
+                                     int vertex_index,
+                                     const std::vector<int> &vertex_one_ring,
+                                     const std::vector<int> &face_one_ring,
+                                     MatrixXr &one_ring_uv_positions) const {
   one_ring_uv_positions.resize(vertex_one_ring.size(), 2);
   if (spdlog::get_level() != spdlog::level::info) {
     SPDLOG_TRACE("Building layout for one ring: {}",
@@ -674,16 +593,15 @@ AffineManifold::layout_one_ring(const Eigen::MatrixXi& F,
 
     // Layout the next vertex
     one_ring_uv_positions.row(i + 1) = layout_next_vertex(
-      one_ring_uv_positions.row(i), next_edge_length, prev_edge_length);
+        one_ring_uv_positions.row(i), next_edge_length, prev_edge_length);
     if (spdlog::get_level() != spdlog::level::info) {
       SPDLOG_TRACE("Next vertex is {}", one_ring_uv_positions.row(i + 1));
     }
-    assert(float_equal(
-      next_edge_length,
-      (one_ring_uv_positions.row(i + 1) - one_ring_uv_positions.row(i))
-        .norm()));
+    assert(float_equal(next_edge_length, (one_ring_uv_positions.row(i + 1) -
+                                          one_ring_uv_positions.row(i))
+                                             .norm()));
     assert(
-      float_equal(prev_edge_length, one_ring_uv_positions.row(i + 1).norm()));
+        float_equal(prev_edge_length, one_ring_uv_positions.row(i + 1).norm()));
   }
   spdlog::trace("Final layout:\n{}", one_ring_uv_positions);
 
@@ -691,12 +609,9 @@ AffineManifold::layout_one_ring(const Eigen::MatrixXi& F,
 }
 
 // Build a corner-indexed metric for a surface with a global parametrization
-void
-AffineManifold::build_lengths_from_global_uv(
-  const Eigen::MatrixXi& F,
-  const MatrixXr& global_uv,
-  std::vector<std::vector<double>>& l) const
-{
+void AffineManifold::build_lengths_from_global_uv(
+    const Eigen::MatrixXi &F, const MatrixXr &global_uv,
+    std::vector<std::vector<double>> &l) const {
   Index num_faces = F.rows();
   Index face_size = F.cols();
   assert(face_size == 3);
@@ -718,42 +633,40 @@ AffineManifold::build_lengths_from_global_uv(
 }
 
 // Align local uv charts with the global parametrization
-void
-AffineManifold::align_local_charts(const MatrixXr& uv,
-                                   const Eigen::MatrixXi& F_uv)
-{
+void AffineManifold::align_local_charts(const MatrixXr &uv,
+                                        const Eigen::MatrixXi &F_uv) {
   // Rotate and scale local layouts to align with the global layout
   for (Index vertex_index = 0; vertex_index < num_vertices(); ++vertex_index) {
     // Get the (transposed) similarity map that maps [1, 0]^T to the first local
     // uv edge
     MatrixXr local_layout =
-      get_vertex_chart(vertex_index).one_ring_uv_positions;
+        get_vertex_chart(vertex_index).one_ring_uv_positions;
     PlanarPoint local_edge = local_layout.row(0);
     MatrixXr local_similarity_map(2, 2);
     local_similarity_map << local_edge[0], local_edge[1], -local_edge[1],
-      local_edge[0];
+        local_edge[0];
 
     // Get the global uv values corresponding the edge of the face
     Index edge_face_index = get_vertex_chart(vertex_index).face_one_ring[0];
     Index edge_face_vertex_index =
-      find_face_vertex_index(m_F.row(edge_face_index), vertex_index);
+        find_face_vertex_index(m_F.row(edge_face_index), vertex_index);
     Index uv_vertex_index = F_uv(edge_face_index, edge_face_vertex_index);
     Index uv_edge_vertex_index =
-      F_uv(edge_face_index, (edge_face_vertex_index + 1) % 3);
+        F_uv(edge_face_index, (edge_face_vertex_index + 1) % 3);
 
     // Get (transposed) similarity map that maps [1, 0]^T to the first global uv
     // edge
     PlanarPoint global_edge =
-      uv.row(uv_edge_vertex_index) - uv.row(uv_vertex_index);
+        uv.row(uv_edge_vertex_index) - uv.row(uv_vertex_index);
     MatrixXr global_similarity_map(2, 2);
     global_similarity_map << global_edge[0], global_edge[1], -global_edge[1],
-      global_edge[0];
+        global_edge[0];
 
     // Apply composite similarity maps to the local uv positions
     MatrixXr similarity_map =
-      global_similarity_map * local_similarity_map.inverse();
+        global_similarity_map * local_similarity_map.inverse();
     m_vertex_charts[vertex_index].one_ring_uv_positions =
-      m_vertex_charts[vertex_index].one_ring_uv_positions * similarity_map;
+        m_vertex_charts[vertex_index].one_ring_uv_positions * similarity_map;
   }
 
   // Check validity after direct member variable manipulation
@@ -763,17 +676,15 @@ AffineManifold::align_local_charts(const MatrixXr& uv,
 }
 
 // Mark cones and surrounding elements in the vertex and face charts
-void
-AffineManifold::mark_cones()
-{
-  Eigen::MatrixXi const& F = get_faces();
+void AffineManifold::mark_cones() {
+  Eigen::MatrixXi const &F = get_faces();
   std::vector<Index> cones;
   compute_cones(cones);
 
   for (size_t i = 0; i < cones.size(); ++i) {
     Index ci = cones[i];
     m_vertex_charts[ci].is_cone = true;
-    VertexManifoldChart const& chart = get_vertex_chart(ci);
+    VertexManifoldChart const &chart = get_vertex_chart(ci);
     spdlog::debug("Marking cone at {}", ci);
 
     // Mark vertices adjacent to cones
@@ -802,11 +713,9 @@ AffineManifold::mark_cones()
   }
 }
 
-double
-AffineManifold::compute_corner_uv_length(
-  AffineManifold::Index face_index,
-  AffineManifold::Index face_vertex_index) const
-{
+double AffineManifold::compute_corner_uv_length(
+    AffineManifold::Index face_index,
+    AffineManifold::Index face_vertex_index) const {
   Index vn = m_F_uv(face_index, (face_vertex_index + 1) % 3);
   Index vp = m_F_uv(face_index, (face_vertex_index + 2) % 3);
   PlanarPoint next_uv = m_global_uv.row(vn);
@@ -816,9 +725,7 @@ AffineManifold::compute_corner_uv_length(
 }
 
 // Check that the manifold is valid and self-consistent
-bool
-AffineManifold::is_valid_affine_manifold() const
-{
+bool AffineManifold::is_valid_affine_manifold() const {
   // Threshold for length comparisons
   double length_threshold = 1e-6;
 
@@ -827,7 +734,7 @@ AffineManifold::is_valid_affine_manifold() const
   zero.setZero(2);
 
   // Face containment helper lambda
-  auto contains_vertex = [](const Eigen::VectorXi& face, Index index) {
+  auto contains_vertex = [](const Eigen::VectorXi &face, Index index) {
     for (Eigen::Index i = 0; i < face.size(); ++i) {
       if (face[i] == index)
         return true;
@@ -837,11 +744,11 @@ AffineManifold::is_valid_affine_manifold() const
   };
 
   // Edge length check helper lambda
-  auto edge_has_length =
-    [&](const PlanarPoint& v0, const PlanarPoint& v1, double length) {
-      PlanarPoint edge = v1 - v0;
-      return float_equal(edge.norm(), length, length_threshold);
-    };
+  auto edge_has_length = [&](const PlanarPoint &v0, const PlanarPoint &v1,
+                             double length) {
+    PlanarPoint edge = v1 - v0;
+    return float_equal(edge.norm(), length, length_threshold);
+  };
 
   // Check that the sizes of the member variables are consistent
   if (static_cast<Index>(m_F.rows()) != static_cast<Index>(m_l.size()))
@@ -856,11 +763,8 @@ AffineManifold::is_valid_affine_manifold() const
       double edge_uv_length = compute_corner_uv_length(fi, j);
       if (!float_equal(edge_length, edge_uv_length, length_threshold)) {
         spdlog::error(
-          "Inconsistent edge length {} and uv length {} for corner {}, {}",
-          edge_length,
-          edge_uv_length,
-          fi,
-          j);
+            "Inconsistent edge length {} and uv length {} for corner {}, {}",
+            edge_length, edge_uv_length, fi, j);
         return false;
       }
 
@@ -874,14 +778,11 @@ AffineManifold::is_valid_affine_manifold() const
 
       // Check uvs are the same for the opposite corners
       double opposite_edge_uv_length = compute_corner_uv_length(fi_opp, j_opp);
-      if (!float_equal(
-            edge_length, opposite_edge_uv_length, length_threshold)) {
+      if (!float_equal(edge_length, opposite_edge_uv_length,
+                       length_threshold)) {
         spdlog::error(
-          "Inconsistent opposite uv length for corners {}, {} and {}, {}",
-          fi,
-          j,
-          fi_opp,
-          j_opp);
+            "Inconsistent opposite uv length for corners {}, {} and {}, {}", fi,
+            j, fi_opp, j_opp);
         return false;
       }
     }
@@ -889,7 +790,7 @@ AffineManifold::is_valid_affine_manifold() const
 
   // Check that each vertex chart is valid
   for (Index vertex_index = 0; vertex_index < num_vertices(); ++vertex_index) {
-    auto const& chart = m_vertex_charts[vertex_index];
+    auto const &chart = m_vertex_charts[vertex_index];
 
     // Check basic chart indexing and size validity
     if (chart.vertex_index != vertex_index)
@@ -906,7 +807,7 @@ AffineManifold::is_valid_affine_manifold() const
     for (size_t i = 0; i < chart.face_one_ring.size(); ++i) {
       Index face_index = chart.face_one_ring[i];
       Index face_vertex_index =
-        find_face_vertex_index(m_F.row(face_index), vertex_index);
+          find_face_vertex_index(m_F.row(face_index), vertex_index);
       Index vi = chart.vertex_one_ring[i];
       Index vj = chart.vertex_one_ring[i + 1];
 
@@ -925,35 +826,30 @@ AffineManifold::is_valid_affine_manifold() const
         spdlog::trace("chart uv positions: {}", chart.one_ring_uv_positions);
         SPDLOG_TRACE("Face lengths: {}", formatted_vector(m_l[face_index]));
       }
-      if (!edge_has_length(zero,
-                           chart.one_ring_uv_positions.row(i),
+      if (!edge_has_length(zero, chart.one_ring_uv_positions.row(i),
                            m_l[face_index][(face_vertex_index + 2) % 3])) {
         spdlog::error(
-          "uv position {} in chart {} does not have expected norm {}",
-          chart.one_ring_uv_positions.row(i),
-          vertex_index,
-          m_l[face_index][(face_vertex_index + 2) % 3]);
+            "uv position {} in chart {} does not have expected norm {}",
+            chart.one_ring_uv_positions.row(i), vertex_index,
+            m_l[face_index][(face_vertex_index + 2) % 3]);
         return false;
       }
       if (!edge_has_length(chart.one_ring_uv_positions.row(i + 1),
                            chart.one_ring_uv_positions.row(i),
                            m_l[face_index][(face_vertex_index + 0) % 3])) {
         spdlog::error(
-          "uv positions {} and {} in chart {} do not have expected length {}",
-          chart.one_ring_uv_positions.row(i + 1),
-          chart.one_ring_uv_positions.row(i),
-          vertex_index,
-          m_l[face_index][(face_vertex_index + 0) % 3]);
+            "uv positions {} and {} in chart {} do not have expected length {}",
+            chart.one_ring_uv_positions.row(i + 1),
+            chart.one_ring_uv_positions.row(i), vertex_index,
+            m_l[face_index][(face_vertex_index + 0) % 3]);
         return false;
       }
-      if (!edge_has_length(zero,
-                           chart.one_ring_uv_positions.row(i + 1),
+      if (!edge_has_length(zero, chart.one_ring_uv_positions.row(i + 1),
                            m_l[face_index][(face_vertex_index + 1) % 3])) {
         spdlog::error(
-          "uv position {} in chart {} does not have expected norm {}",
-          chart.one_ring_uv_positions.row(i + 1),
-          vertex_index,
-          m_l[face_index][(face_vertex_index + 1) % 3]);
+            "uv position {} in chart {} does not have expected norm {}",
+            chart.one_ring_uv_positions.row(i + 1), vertex_index,
+            m_l[face_index][(face_vertex_index + 1) % 3]);
         return false;
       }
     }
@@ -971,23 +867,18 @@ AffineManifold::is_valid_affine_manifold() const
 // Public Methods
 // **************
 
-ParametricAffineManifold::ParametricAffineManifold()
-{
+ParametricAffineManifold::ParametricAffineManifold() {
   assert(is_valid_parametric_affine_manifold());
 }
 
-ParametricAffineManifold::ParametricAffineManifold(const Eigen::MatrixXi& F,
-                                                   const MatrixXr& global_uv)
-  : AffineManifold(F, global_uv, F)
-{
+ParametricAffineManifold::ParametricAffineManifold(const Eigen::MatrixXi &F,
+                                                   const MatrixXr &global_uv)
+    : AffineManifold(F, global_uv, F) {
   assert(is_valid_parametric_affine_manifold());
 }
 
-void
-ParametricAffineManifold::get_vertex_global_uv(
-  AffineManifold::Index vertex_index,
-  PlanarPoint& uv_coords) const
-{
+void ParametricAffineManifold::get_vertex_global_uv(
+    AffineManifold::Index vertex_index, PlanarPoint &uv_coords) const {
   uv_coords = m_global_uv.row(vertex_index);
 }
 
@@ -995,26 +886,23 @@ ParametricAffineManifold::get_vertex_global_uv(
 // Private Methods
 // ***************
 
-bool
-ParametricAffineManifold::is_valid_parametric_affine_manifold() const
-{
+bool ParametricAffineManifold::is_valid_parametric_affine_manifold() const {
   if (m_F_uv != m_F)
     return false;
 
   // Check layout around each vertex is compatible with the global uv
   for (Index vertex_index = 0; vertex_index < num_vertices(); ++vertex_index) {
-    auto const& chart = m_vertex_charts[vertex_index];
+    auto const &chart = m_vertex_charts[vertex_index];
     for (size_t i = 0; i < chart.vertex_one_ring.size(); ++i) {
       Index vi = chart.vertex_one_ring[i];
       PlanarPoint local_uv_difference = chart.one_ring_uv_positions.row(i);
       PlanarPoint global_uv_difference =
-        m_global_uv.row(vi) - m_global_uv.row(vertex_index);
+          m_global_uv.row(vi) - m_global_uv.row(vertex_index);
       if (!vector_equal(global_uv_difference, local_uv_difference)) {
-        spdlog::error(
-          "Global uv coordinates {} and {} do not have expected difference {}",
-          m_global_uv.row(vi),
-          m_global_uv.row(vertex_index),
-          local_uv_difference);
+        spdlog::error("Global uv coordinates {} and {} do not have expected "
+                      "difference {}",
+                      m_global_uv.row(vi), m_global_uv.row(vertex_index),
+                      local_uv_difference);
         return false;
       }
     }
@@ -1024,14 +912,12 @@ ParametricAffineManifold::is_valid_parametric_affine_manifold() const
   return true;
 }
 
-void
-remove_cones(const Eigen::MatrixXd& V,
-             const AffineManifold& affine_manifold,
-             Eigen::MatrixXd& pruned_V,
-             AffineManifold& pruned_affine_manifold,
-             std::vector<AffineManifold::Index>& cones,
-             std::vector<AffineManifold::Index>& removed_faces)
-{
+void remove_cones(const Eigen::MatrixXd &V,
+                  const AffineManifold &affine_manifold,
+                  Eigen::MatrixXd &pruned_V,
+                  AffineManifold &pruned_affine_manifold,
+                  std::vector<AffineManifold::Index> &cones,
+                  std::vector<AffineManifold::Index> &removed_faces) {
   // Compute the cones
   affine_manifold.compute_cones(cones);
   spdlog::debug("Removing cones at {}", formatted_vector(cones, ", "));
@@ -1041,34 +927,34 @@ remove_cones(const Eigen::MatrixXd& V,
   for (AffineManifold::Index vi = 0; vi < affine_manifold.num_vertices();
        ++vi) {
     is_cone_adjacent_vertex[vi] =
-      affine_manifold.get_vertex_chart(vi).is_cone_adjacent;
+        affine_manifold.get_vertex_chart(vi).is_cone_adjacent;
   }
 
   // Create boolean arrays of cone adjacent faces
   std::vector<bool> is_cone_adjacent_face(affine_manifold.num_faces());
   for (AffineManifold::Index fi = 0; fi < affine_manifold.num_faces(); ++fi) {
     is_cone_adjacent_face[fi] =
-      affine_manifold.get_face_chart(fi).is_cone_adjacent;
+        affine_manifold.get_face_chart(fi).is_cone_adjacent;
   }
 
   // Remove faces from VF meshes
-  Eigen::MatrixXi const& F_orig = affine_manifold.get_faces();
-  MatrixXr const& global_uv_orig = affine_manifold.get_global_uv();
-  Eigen::MatrixXi const& F_uv_orig = affine_manifold.get_F_uv();
+  Eigen::MatrixXi const &F_orig = affine_manifold.get_faces();
+  MatrixXr const &global_uv_orig = affine_manifold.get_global_uv();
+  Eigen::MatrixXi const &F_uv_orig = affine_manifold.get_F_uv();
   Eigen::MatrixXi F;
   MatrixXr global_uv;
   Eigen::MatrixXi F_uv;
-  remove_mesh_vertices(
-    global_uv_orig, F_uv_orig, cones, global_uv, F_uv, removed_faces);
+  remove_mesh_vertices(global_uv_orig, F_uv_orig, cones, global_uv, F_uv,
+                       removed_faces);
   remove_mesh_faces(V, F_orig, removed_faces, pruned_V, F);
 
   // Remove faces from the cone adjacent arrays
   std::vector<bool> is_cone_adjacent_face_reindexed;
   std::vector<bool> is_cone_adjacent_vertex_reindexed;
-  remove_vector_values<bool>(
-    removed_faces, is_cone_adjacent_face, is_cone_adjacent_face_reindexed);
-  remove_vector_values<bool>(
-    cones, is_cone_adjacent_vertex, is_cone_adjacent_vertex_reindexed);
+  remove_vector_values<bool>(removed_faces, is_cone_adjacent_face,
+                             is_cone_adjacent_face_reindexed);
+  remove_vector_values<bool>(cones, is_cone_adjacent_vertex,
+                             is_cone_adjacent_vertex_reindexed);
 
   // Make new affine manifold with cones removed
   pruned_affine_manifold = AffineManifold(F, global_uv, F_uv);
@@ -1086,4 +972,214 @@ remove_cones(const Eigen::MatrixXd& V,
       pruned_affine_manifold.mark_cone_adjacent_vertex(vi);
     }
   }
+}
+
+// code added for C1 constraints
+
+void AffineManifold::compute_edge_global_uv_mappings() {
+  const auto &F = get_faces();
+  const auto &F_uv = get_F_uv();
+  const auto &uvs = get_global_uv();
+
+  for (auto &e : m_edge_charts) {
+    const int64_t top_f_idx = e.top_face_index;
+    const int64_t bottom_f_idx = e.bottom_face_index;
+
+    // top face
+    const auto &f_top = F.row(top_f_idx);
+    const auto &f_top_uv = F_uv.row(top_f_idx);
+
+    std::array<int64_t, 3> top_local_idx = {{-1, -1, -1}}; // left, right, top
+    for (int i = 0; i < 3; ++i) {
+      if (f_top[i] == e.left_vertex_index) {
+        top_local_idx[0] = i;
+      }
+      if (f_top[i] == e.right_vertex_index) {
+        top_local_idx[1] = i;
+      }
+      if (f_top[i] == e.top_vertex_index) {
+        top_local_idx[2] = i;
+      }
+    }
+
+    for (int i = 0; i < 3; ++i) {
+      assert(top_local_idx[i] > -1);
+    }
+
+    e.left_global_uv_idx = f_top_uv[top_local_idx[0]];
+    e.right_global_uv_idx = f_top_uv[top_local_idx[1]];
+    e.top_global_uv_idx = f_top_uv[top_local_idx[2]];
+
+    e.left_global_uv_position = uvs.row(e.left_global_uv_idx);
+    e.right_global_uv_position = uvs.row(e.right_global_uv_idx);
+    e.top_global_uv_position = uvs.row(e.top_global_uv_idx);
+
+    // bottom face
+    const auto &f_bottom = F.row(bottom_f_idx);
+    const auto &f_bottom_uv = F_uv.row(bottom_f_idx);
+
+    std::array<int64_t, 3> bottom_local_idx = {
+        {-1, -1, -1}}; // right (reverse left), left (reverse right), bottom
+    for (int i = 0; i < 3; ++i) {
+      if (f_bottom[i] == e.right_vertex_index) {
+        bottom_local_idx[0] = i;
+      }
+      if (f_bottom[i] == e.left_vertex_index) {
+        bottom_local_idx[1] = i;
+      }
+      if (f_bottom[i] == e.bottom_vertex_index) {
+        bottom_local_idx[2] = i;
+      }
+    }
+
+    for (int i = 0; i < 3; ++i) {
+      assert(bottom_local_idx[i] > -1);
+    }
+
+    e.reverse_left_global_uv_idx = f_bottom_uv[bottom_local_idx[0]];
+    e.reverse_right_global_uv_idx = f_bottom_uv[bottom_local_idx[1]];
+    e.bottom_global_uv_idx = f_bottom_uv[bottom_local_idx[2]];
+
+    e.reverse_left_global_uv_position = uvs.row(e.reverse_left_global_uv_idx);
+    e.reverse_right_global_uv_position = uvs.row(e.reverse_right_global_uv_idx);
+    e.bottom_global_uv_position = uvs.row(e.bottom_global_uv_idx);
+  }
+}
+
+// redundant
+void AffineManifold::compute_face_global_uv_mappings() { return; }
+
+void AffineManifold::generate_lagrange_nodes() {
+  // b0 b1 b2 b01 b10 b12 b21 b20 b02 b01^c b12^c b20^c b0c bc0 b1c bc1 b2c
+  // bc2 bc
+
+  const std::array<PlanarPoint, 19> CT_nodes = {{
+      PlanarPoint(1., 0.),           // b0
+      PlanarPoint(0., 1.),           // b1
+      PlanarPoint(0., 0.),           // b2
+      PlanarPoint(2. / 3., 1. / 3.), // b01
+      PlanarPoint(1. / 3., 2. / 3.), // b10
+      PlanarPoint(0., 2. / 3.),      // b12
+      PlanarPoint(0., 1. / 3.),      // b21
+      PlanarPoint(1. / 3., 0.),      // b20
+      PlanarPoint(2. / 3., 0.),      // b02
+      PlanarPoint(4. / 9., 4. / 9.), // b01^c
+      PlanarPoint(1. / 9., 4. / 9.), // b12^c
+      PlanarPoint(4. / 9., 1. / 9.), // b20^c
+      PlanarPoint(7. / 9., 1. / 9.), // b0c
+      PlanarPoint(5. / 9., 2. / 9.), // bc0
+      PlanarPoint(1. / 9., 7. / 9.), // b1c
+      PlanarPoint(2. / 9., 5. / 9.), // bc1
+      PlanarPoint(1. / 9., 1. / 9.), // b2c
+      PlanarPoint(2. / 9., 2. / 9.), // bc2
+      PlanarPoint(1. / 3., 1. / 3.), // bc
+  }};
+
+  // std::map<int64_t, int64_t> v_to_lagrange_node_map;
+  const auto &F = get_faces();
+  // const auto &F_uv = get_F_uv();
+
+  // compute cornor vertices
+  for (size_t i = 0; i < m_face_charts.size(); ++i) {
+    const auto &f_idx = m_face_charts[i].face_index;
+    const auto &f = F.row(f_idx);
+
+    for (int k = 0; k < 3; ++k) {
+      if (v_to_lagrange_node_map.find(f[k]) != v_to_lagrange_node_map.end()) {
+        // vertex already computed
+        continue;
+      } else {
+        v_to_lagrange_node_map[f[k]] = m_lagrange_nodes.size();
+        m_lagrange_nodes.emplace_back(i, CT_nodes[k]);
+      }
+    }
+  }
+
+  // compute nodes on edges and faces
+  // std::map<std::pair<int64_t, int64_t>, std::array<int64_t, 4>>
+  //     m_boundary_edge_to_node_map;
+
+  for (size_t i = 0; i < m_face_charts.size(); ++i) {
+    const auto &f_idx = m_face_charts[i].face_index;
+    const auto &f = F.row(f_idx);
+
+    std::array<int64_t, 19> l_vids = {-1}; // node indices for face
+
+    // b0 b1 b2
+    for (int k = 0; k < 3; ++k) {
+      l_vids[k] = v_to_lagrange_node_map[f[k]];
+    }
+
+    // b01 b10 b12 b21 b20 b02
+    for (int k = 0; k < 3; ++k) {
+      if (m_boundary_edge_to_node_map.find(std::make_pair(
+              f[(k + 1) % 3], f[k])) != m_boundary_edge_to_node_map.end()) {
+        // if already computed its reverse edge
+        const auto &vs =
+            m_boundary_edge_to_node_map[std::make_pair(f[(k + 1) % 3], f[k])];
+        l_vids[3 + k * 2 + 0] = vs[1];
+        l_vids[3 + k * 2 + 1] = vs[0];
+      } else {
+        // create new nodes
+        l_vids[3 + k * 2 + 0] = m_lagrange_nodes.size();
+        m_lagrange_nodes.emplace_back(i, CT_nodes[3 + k * 2 + 0]);
+        l_vids[3 + k * 2 + 1] = m_lagrange_nodes.size();
+        m_lagrange_nodes.emplace_back(i, CT_nodes[3 + k * 2 + 1]);
+        // add to edge-node map
+        m_boundary_edge_to_node_map[std::make_pair(f[k], f[(k + 1) % 3])] = {
+            {l_vids[3 + k * 2 + 0], l_vids[3 + k * 2 + 1]}};
+      }
+    }
+
+    // b01^c b12^c b20^c b0c bc0 b1c bc1 b2c bc2 bc
+    for (int k = 9; k < 19; ++k) {
+      l_vids[k] = m_lagrange_nodes.size();
+      m_lagrange_nodes.emplace_back(i, CT_nodes[k]);
+    }
+
+    for (int k = 0; k < 19; ++k) {
+      assert(l_vids[k] > -1);
+    }
+
+    // can avoid copy, but fine now
+    m_face_charts[i].lagrange_nodes = l_vids;
+
+    // assign lagrange node to edge chart
+    // TODO:
+    // maybe outside this loop
+  }
+
+  assert(m_lagrange_nodes.size() == 10 * m_face_charts.size() +
+                                        2 * m_edge_charts.size() +
+                                        m_vertex_charts.size());
+}
+
+/*
+get constraint matrices
+*/
+
+void AffineManifold::get_u_ij(Eigen::SparseMatrix<double> &u_ij_u,
+                              Eigen::SparseMatrix<double> &u_ij_v) const {
+  const int64_t N_L = m_lagrange_nodes.size();
+  assert(size_t(N_L) == 10 * m_face_charts.size() + 2 * m_edge_charts.size() +
+                            m_vertex_charts.size());
+  u_ij_u.resize(N_L, N_L);
+  u_ij_v.resize(N_L, N_L);
+
+  std::vector<Eigen::Triplet<double>> triplets_u;
+  std::vector<Eigen::Triplet<double>> triplets_v;
+  for (const auto &e : m_edge_charts) {
+    const auto ev0 = e.left_vertex_index;
+    const auto ev1 = e.right_vertex_index;
+    const auto ev0_pos = e.left_vertex_uv_position;
+    const auto ev1_pos = e.right_vertex_uv_position;
+
+    triplets_u.emplace_back(ev0, ev1, (ev1_pos - ev0_pos)[0]);
+    triplets_u.emplace_back(ev1, ev0, (ev0_pos - ev1_pos)[0]);
+    triplets_v.emplace_back(ev0, ev1, (ev1_pos - ev0_pos)[1]);
+    triplets_v.emplace_back(ev1, ev0, (ev0_pos - ev1_pos)[1]);
+  }
+
+  u_ij_u.setFromTriplets(triplets_u.begin(), triplets_u.end());
+  u_ij_v.setFromTriplets(triplets_v.begin(), triplets_v.end());
 }

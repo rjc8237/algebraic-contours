@@ -6,6 +6,7 @@ add_library(QuadraticSplineSurfaceLib
   quadratic_spline_surface.cpp
   quadratic_spline_surface_patch.cpp
   twelve_split_spline.cpp
+  quadratic_spline_surface_msh_writer.cpp
 )
 target_include_directories(QuadraticSplineSurfaceLib PUBLIC .)
 target_link_libraries(QuadraticSplineSurfaceLib PUBLIC
