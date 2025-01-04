@@ -81,9 +81,30 @@ int main(int argc, char *argv[]) {
 
   Eigen::SparseMatrix<double> c_f_int;
   ct_surface.C_F_int(c_f_int);
+  Eigen::SparseMatrix<double> C_E_end;
+  ct_surface.C_E_end(C_E_end);
+  Eigen::SparseMatrix<double> C_E_mid;
+  ct_surface.C_E_mid(C_E_mid);
 
   std::ofstream file("interior_constraint_matrix.txt");
-  file << c_f_int;
+  file << std::setprecision(16) << c_f_int;
+  std::ofstream file_2("edge_endpoint_constraint_matrix.txt");
+  file_2 << std::setprecision(16) << c_f_int;
+  std::ofstream file_3("edge_midpoint_constraint_matrix.txt");
+  file_3 << std::setprecision(16) << c_f_int;
+
+  file.close();
+  file_2.close();
+  file_3.close();
+
+  //   std::ofstream file_4("interior_constraint_matrix_triplets.txt");
+  //   const auto trip1 = c_f_int.to_triplets();
+  //   std::ofstream file_5("edge_endpoint_constraint_matrix_triplets.txt");
+  //   std::ofstream file_6("edge_midpoint_constraint_matrix_triplets.txt");
+
+  //   file_4.close();
+  //   file_5.close();
+  //   file_6.close();
 
   return 0;
 }

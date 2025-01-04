@@ -49,4 +49,11 @@ public:
   void P_G2F(Eigen::SparseMatrix<double> &m);
   void C_L_int(Eigen::Matrix<double, 7, 19> &m);
   void C_F_int(Eigen::SparseMatrix<double> &m);
+
+  // edge endpoint constraints
+  void P_G2E(Eigen::SparseMatrix<double> &m);
+  void C_E_end(Eigen::SparseMatrix<double> &m);
+
+  // edge midpoint constraints
+  void C_E_mid(Eigen::SparseMatrix<double> &m);
 };
